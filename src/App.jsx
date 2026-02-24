@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Calendar, User, Heart, Send, Trophy, ArrowLeft, Image as ImageIcon, Users, MapPin, Loader2, AlertCircle } from 'lucide-react';
 
-// Firebase 라이브러리
+// Firebase 라이브러리 (인증 부분 제거, 데이터베이스만 사용)
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, getDocs } from 'firebase/firestore';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
 // 남선교회 실제 배포용 Firebase 설정
 const firebaseConfig = {
@@ -19,14 +18,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const auth = getAuth(app);
 
 export default function App() {
-  const [user, setUser] = useState(null);
   const [currentView, setCurrentView] = useState('form'); 
-  const [isLoading, setIsLoading] = useState(true); // 초기 로딩 상태
+  const [isLoading, setIsLoading] = useState(false);
   const [submissions, setSubmissions] = useState([]);
-  const [modalMessage, setModalMessage] = useState(''); // 브라우저 경고창(alert) 대체용 모달 상태
+  const [modalMessage, setModalMessage] = useState('');
 
   const [formData, setFormData] = useState({
     cellName: '',
@@ -41,31 +38,8 @@ export default function App() {
   const [errors, setErrors] = useState({});
   const fileInputRef = useRef(null);
 
-  // 인증 상태 리스너 등록
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (e) {
-        console.error("인증 로그인 에러:", e);
-        if (e.code === 'auth/configuration-not-found' || e.message.includes('configuration-not-found')) {
-          setModalMessage("파이어베이스 인증 설정이 필요합니다!\n\n데이터베이스를 안전하게 사용하기 위해 다음을 진행해주세요:\n1. 파이어베이스 콘솔 'Authentication(인증)' 메뉴 접속\n2. '시작하기' 클릭\n3. 'Sign-in method' 탭에서 '익명(Anonymous)' 사용 설정 후 저장\n\n설정이 완료되면 이 페이지를 새로고침 해주세요.");
-        } else {
-          setModalMessage("인증 통신 중 오류가 발생했습니다: " + e.message);
-        }
-        setIsLoading(false);
-      }
-    };
-    initAuth();
-    
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
-  }, []);
-
-  // 클라우드 데이터 불러오기 함수
+  // 클라우드 데이터 불러오기 함수 (인증 절차 생략)
   const fetchSubmissions = async () => {
-    if (!user) return; // 사용자가 없으면 데이터 요청 차단
-    
     try {
       setIsLoading(true);
       const colRef = collection(db, 'prayers');
@@ -73,25 +47,23 @@ export default function App() {
       
       const rawData = data.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
       
-      // 최신순 정렬 (메모리상에서 처리)
+      // 최신순 정렬
       rawData.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
       setSubmissions(rawData);
     } catch (error) {
       console.error("데이터 로드 중 에러:", error);
       if (error.message.includes('Missing or insufficient permissions')) {
-        setModalMessage("데이터베이스 권한 오류가 발생했습니다!\n\n파이어베이스 홈페이지에서 Firestore Database의 '규칙(Rules)' 탭으로 이동하신 후,\nallow read, write: if true;\n로 변경하고 '게시'를 눌러주셔야 작동합니다.");
+        setModalMessage("데이터베이스 권한이 막혀있습니다!\n\n파이어베이스 홈페이지 > Firestore Database > '규칙(Rules)' 탭에서\nallow read, write: if true;\n로 변경하고 '게시'를 눌러주세요.");
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 계정 인증이 확인되면 즉시 데이터를 불러옵니다.
+  // 앱이 처음 켜질 때 즉시 데이터 로드
   useEffect(() => {
-    if (user) {
-      fetchSubmissions();
-    }
-  }, [user]);
+    fetchSubmissions();
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -149,11 +121,6 @@ export default function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
-      if (!user) {
-        setModalMessage("서버 통신을 위한 인증이 완료되지 않았습니다.\n파이어베이스 콘솔 설정(익명 로그인)을 다시 확인해주세요.");
-        return;
-      }
-
       setIsLoading(true);
       try {
         const colRef = collection(db, 'prayers');
@@ -179,9 +146,9 @@ export default function App() {
       } catch (error) {
         console.error("데이터 전송 중 에러:", error);
         if (error.message.includes('Missing or insufficient permissions')) {
-          setModalMessage("업로드 권한이 없습니다!\n\n파이어베이스 콘솔 > Firestore 규칙(Rules) 설정을 'allow read, write: if true;' 로 변경해주세요.");
+          setModalMessage("업로드 권한이 막혀있습니다!\n\n파이어베이스 홈페이지 > Firestore 규칙(Rules) 설정을\n'allow read, write: if true;'\n로 변경해주세요.");
         } else {
-          setModalMessage("업로드에 실패했습니다. 인터넷 연결이나 권한을 다시 확인해주세요.");
+          setModalMessage("업로드에 실패했습니다. 인터넷 연결을 다시 확인해주세요.");
         }
       } finally {
         setIsLoading(false);
@@ -205,7 +172,6 @@ export default function App() {
     return Object.values(counts).sort((a, b) => b.count - a.count);
   };
 
-  // 로딩 오버레이 UI
   const LoadingOverlay = () => (
     <div className="fixed inset-0 bg-black/50 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
       <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
@@ -213,7 +179,6 @@ export default function App() {
     </div>
   );
 
-  // 커스텀 알림창(모달) UI
   const AlertModal = () => {
     if (!modalMessage) return null;
     return (
