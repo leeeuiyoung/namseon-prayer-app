@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Calendar, User, Heart, Send, Trophy, ArrowLeft, Image as ImageIcon, Users, MapPin, Loader2, AlertCircle, Settings, Trash2, Lock, Edit2 } from 'lucide-react';
+import { Camera, Calendar, User, Heart, Send, Trophy, ArrowLeft, Image as ImageIcon, Users, MapPin, Loader2, AlertCircle, Settings, Trash2, Lock, Edit2, X, ZoomIn } from 'lucide-react';
 
 // Firebase 라이브러리
 import { initializeApp } from 'firebase/app';
@@ -52,6 +52,9 @@ export default function App() {
   // 관리자 수정 상태
   const [editingId, setEditingId] = useState(null);
   const [editFormData, setEditFormData] = useState({});
+
+  // 사진 크게 보기 상태 (추가됨)
+  const [selectedImage, setSelectedImage] = useState(null);
 
   // 앱 설정 (이달의 기도용사 표시 여부)
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -457,6 +460,34 @@ export default function App() {
     );
   };
 
+  // 이미지 확대 보기 모달 (추가됨)
+  const ImageModal = () => {
+    if (!selectedImage) return null;
+    return (
+      <div 
+        className="fixed inset-0 bg-black/85 z-[120] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in cursor-pointer"
+        onClick={() => setSelectedImage(null)}
+      >
+        <button 
+          onClick={() => setSelectedImage(null)}
+          className="absolute top-4 right-4 p-2 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full transition-all z-10"
+        >
+          <X className="w-6 h-6" />
+        </button>
+        <div 
+          className="relative max-w-full max-h-[90vh] flex items-center justify-center cursor-default" 
+          onClick={(e) => e.stopPropagation()}
+        >
+          <img 
+            src={selectedImage} 
+            alt="확대된 인증샷" 
+            className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
+          />
+        </div>
+      </div>
+    );
+  };
+
   // --- 화면 뷰 컴포넌트들 ---
 
   const FormView = () => (
@@ -634,11 +665,22 @@ export default function App() {
               ) : (
                 paddedRecent.map((sub, idx) => (
                   sub ? (
-                    <div key={sub.id || idx} className="relative rounded-xl overflow-hidden aspect-square border border-gray-100 shadow-sm bg-gray-100">
-                      {sub.photoPreview && <img src={sub.photoPreview} alt="인증샷" className="w-full h-full object-cover" />}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-2">
+                    <div 
+                      key={sub.id || idx} 
+                      onClick={() => sub.photoPreview && setSelectedImage(sub.photoPreview)}
+                      className="relative rounded-xl overflow-hidden aspect-square border border-gray-100 shadow-sm bg-gray-100 group cursor-pointer"
+                    >
+                      {sub.photoPreview && <img src={sub.photoPreview} alt="인증샷" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-2 z-10">
                         <span className="text-white font-bold text-sm">{sub.name} {sub.position}</span>
                         <span className="text-gray-200 text-xs">{sub.date.substring(5)}</span>
+                      </div>
+                      
+                      {/* 마우스 호버 시 돋보기 아이콘 효과 */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 z-20">
+                        <div className="bg-black/50 p-2 rounded-full backdrop-blur-sm transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                          <ZoomIn className="w-6 h-6 text-white" />
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -848,6 +890,7 @@ export default function App() {
       <div className="w-full max-w-md bg-white min-h-screen shadow-2xl relative">
         {AlertModal()}
         {ConfirmModal()}
+        {ImageModal()}
         {isLoading && LoadingOverlay()}
         
         {currentView === 'form' && FormView()}
