@@ -19,6 +19,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// 로컬 시간 기준의 오늘 날짜(YYYY-MM-DD)를 가져오는 헬퍼 함수
+const getLocalTodayDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function App() {
   const [currentView, setCurrentView] = useState('form'); // 'form' | 'success' | 'results' | 'admin'
   const [isLoading, setIsLoading] = useState(false);
@@ -26,14 +35,14 @@ export default function App() {
   
   // 모달 상태 관리 (alert, confirm 대체)
   const [modalMessage, setModalMessage] = useState('');
-  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null });
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', confirmText: '확인', isDestructive: false, onConfirm: null });
 
   // 폼 상태
   const [formData, setFormData] = useState({
     cellName: '',
     name: '',
     position: '성도',
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalTodayDate(),
     photoPreview: null
   });
   const [errors, setErrors] = useState({});
@@ -43,6 +52,7 @@ export default function App() {
   // 페이지네이션 상태
   const [leaderboardPage, setLeaderboardPage] = useState(1);
   const [recentPage, setRecentPage] = useState(1);
+  const [adminPage, setAdminPage] = useState(1); // 관리자 전체 기록 페이지 상태 추가
 
   // 관리자 상태
   const [isAdmin, setIsAdmin] = useState(false);
@@ -197,42 +207,64 @@ export default function App() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // 실제 업로드를 수행하는 분리된 함수
+  const executeSubmit = async () => {
+    setIsLoading(true);
+    try {
+      const colRef = collection(db, 'prayers');
+      
+      // "셀" 글자 중복 방지 처리 (예: "요한셀" 또는 "요한 셀" -> "요한"으로 통일하여 저장)
+      const normalizedCellName = formData.cellName.trim().replace(/\s*셀$/, '').trim();
+
+      await addDoc(colRef, {
+        cellName: normalizedCellName,
+        name: formData.name,
+        position: formData.position,
+        date: formData.date,
+        photoPreview: formData.photoPreview,
+        submittedAt: new Date().toISOString()
+      });
+      
+      await fetchSubmissions();
+      setCurrentView('success');
+      
+      setFormData({
+        cellName: '', name: '', position: '성도',
+        date: getLocalTodayDate(),
+        photoPreview: null
+      });
+    } catch (error) {
+      console.error("데이터 전송 중 에러:", error);
+      if (error.message.includes('Missing or insufficient permissions')) {
+        setModalMessage("업로드 권한이 막혀있습니다!\n\n파이어베이스 홈페이지 > Firestore 규칙(Rules) 설정을\n'allow read, write: if true;'\n로 변경해주세요.");
+      } else {
+        setModalMessage("업로드에 실패했습니다. 인터넷 연결을 다시 확인해주세요.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
-      setIsLoading(true);
-      try {
-        const colRef = collection(db, 'prayers');
-        
-        // "셀" 글자 중복 방지 처리 (예: "요한셀" 또는 "요한 셀" -> "요한"으로 통일하여 저장)
-        const normalizedCellName = formData.cellName.trim().replace(/\s*셀$/, '').trim();
-
-        await addDoc(colRef, {
-          cellName: normalizedCellName,
-          name: formData.name,
-          position: formData.position,
-          date: formData.date,
-          photoPreview: formData.photoPreview,
-          submittedAt: new Date().toISOString()
+      const todayStr = getLocalTodayDate();
+      
+      // 선택한 날짜가 오늘보다 과거일 경우 확인 모달 띄우기
+      if (formData.date < todayStr) {
+        setConfirmDialog({
+          isOpen: true,
+          message: `오늘은 ${todayStr}입니다.\n선택하신 날짜는 ${formData.date}입니다.\n\n지난 날짜(전날 등)의 인증샷을 올리시는 게 맞나요?`,
+          confirmText: '네, 올립니다',
+          isDestructive: false,
+          onConfirm: () => {
+            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+            executeSubmit(); // '네'를 누르면 정상적으로 과거 날짜로 업로드가 허용됨
+          }
         });
-        
-        await fetchSubmissions();
-        setCurrentView('success');
-        
-        setFormData({
-          cellName: '', name: '', position: '성도',
-          date: new Date().toISOString().split('T')[0],
-          photoPreview: null
-        });
-      } catch (error) {
-        console.error("데이터 전송 중 에러:", error);
-        if (error.message.includes('Missing or insufficient permissions')) {
-          setModalMessage("업로드 권한이 막혀있습니다!\n\n파이어베이스 홈페이지 > Firestore 규칙(Rules) 설정을\n'allow read, write: if true;'\n로 변경해주세요.");
-        } else {
-          setModalMessage("업로드에 실패했습니다. 인터넷 연결을 다시 확인해주세요.");
-        }
-      } finally {
-        setIsLoading(false);
+      } else {
+        // 날짜가 오늘이거나 미래인 경우 즉시 업로드 진행
+        executeSubmit();
       }
     }
   };
@@ -257,6 +289,8 @@ export default function App() {
     setConfirmDialog({
       isOpen: true,
       message: "이 인증 기록을 정말 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.",
+      confirmText: '삭제',
+      isDestructive: true,
       onConfirm: () => executeDelete(id)
     });
   };
@@ -356,6 +390,8 @@ export default function App() {
     setConfirmDialog({
       isOpen: true,
       message: "⚠️ 정말 모든 인증 기록을 초기화하시겠습니까?\n이 작업은 절대 되돌릴 수 없으며, 모든 사진과 기록이 영구 삭제됩니다.",
+      confirmText: '전체 삭제',
+      isDestructive: true,
       onConfirm: executeDeleteAll
     });
   };
@@ -436,7 +472,7 @@ export default function App() {
     return (
       <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
         <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-          <div className="flex items-center mb-4 text-red-500">
+          <div className={`flex items-center mb-4 ${confirmDialog.isDestructive ? 'text-red-500' : 'text-blue-600'}`}>
             <AlertCircle className="w-6 h-6 mr-2" />
             <h3 className="text-lg font-bold text-gray-800">확인</h3>
           </div>
@@ -450,9 +486,9 @@ export default function App() {
             </button>
             <button 
               onClick={confirmDialog.onConfirm} 
-              className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors"
+              className={`flex-1 py-3 text-white rounded-xl font-bold transition-colors ${confirmDialog.isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
-              삭제
+              {confirmDialog.confirmText || '확인'}
             </button>
           </div>
         </div>
@@ -785,6 +821,38 @@ export default function App() {
             </div>
           </div>
 
+          {/* 관리자 열람용 랭킹 (추가된 부분) */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-4 bg-slate-50 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="font-bold text-gray-800 flex items-center"><Trophy className="w-5 h-5 mr-2 text-yellow-500" /> 기도용사 랭킹 (관리자 열람용)</h2>
+            </div>
+            <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
+              {leaderboard.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">아직 인증된 내역이 없습니다.</p>
+              ) : (
+                leaderboard.map((person, idx) => {
+                  const actualRank = idx + 1;
+                  return (
+                    <div key={actualRank} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 text-sm rounded-full flex items-center justify-center font-bold shrink-0 ${actualRank === 1 ? 'bg-yellow-100 text-yellow-600' : actualRank === 2 ? 'bg-gray-200 text-gray-600' : actualRank === 3 ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>{actualRank}</div>
+                        <div>
+                          <div className="font-bold text-gray-900">{person.name} <span className="text-xs text-gray-500 font-normal">{person.position}</span></div>
+                          <div className="text-xs text-blue-600">{person.cellName}셀</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-blue-600">{person.count}회</div>
+                        <div className="text-[10px] text-gray-400">최근: {person.lastDate.substring(5)}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* 전체 인증 기록 관리 영역 */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-gray-100 flex justify-between items-center">
               <h2 className="font-bold text-gray-800">전체 인증 기록 ({submissions.length}건)</h2>
@@ -796,7 +864,7 @@ export default function App() {
               {submissions.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">기록이 없습니다.</p>
               ) : (
-                submissions.map((sub) => (
+                submissions.slice((adminPage - 1) * 5, adminPage * 5).map((sub) => (
                   <div key={sub.id} className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center hover:bg-gray-50">
                     {editingId === sub.id ? (
                       <div className="w-full bg-blue-50/50 flex flex-col gap-3 p-3 rounded-xl border border-blue-100">
@@ -879,6 +947,13 @@ export default function App() {
                 ))
               )}
             </div>
+            
+            {/* 전체 인증 기록 페이지네이션 (5개씩) */}
+            {submissions.length > 5 && (
+              <div className="pb-5 pt-1 border-t border-gray-100">
+                {renderPagination(adminPage, submissions.length, 5, setAdminPage)}
+              </div>
+            )}
           </div>
         </div>
       </div>
