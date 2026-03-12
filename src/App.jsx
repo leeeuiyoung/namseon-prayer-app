@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Calendar, User, Heart, Send, Trophy, ArrowLeft, Image as ImageIcon, Users, MapPin, Loader2, AlertCircle, Settings, Trash2, Lock, Edit2, X, ZoomIn } from 'lucide-react';
+import { Camera, Calendar, User, Heart, Send, Trophy, ArrowLeft, Image as ImageIcon, Users, MapPin, Loader2, AlertCircle, Settings, Trash2, Lock, Edit2, X, ZoomIn, Search } from 'lucide-react';
 
 // Firebase 라이브러리
 import { initializeApp } from 'firebase/app';
@@ -57,7 +57,13 @@ export default function App() {
   // 관리자 상태
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPwdInput, setAdminPwdInput] = useState('');
+  const [adminSearchQuery, setAdminSearchQuery] = useState(''); // 관리자 검색어 상태 추가
   const ADMIN_PASSWORD = '7777'; // 관리자 접속 비밀번호
+
+  // 검색어가 변경될 때마다 관리자 페이지를 1페이지로 리셋
+  useEffect(() => {
+    setAdminPage(1);
+  }, [adminSearchQuery]);
 
   // 관리자 수정 상태
   const [editingId, setEditingId] = useState(null);
@@ -778,6 +784,12 @@ export default function App() {
       );
     }
 
+    // 검색어에 따른 결과 필터링
+    const filteredAdminSubmissions = submissions.filter(sub => 
+      (sub.name && sub.name.includes(adminSearchQuery)) || 
+      (sub.cellName && sub.cellName.includes(adminSearchQuery))
+    );
+
     // 관리자 로그인 성공 시 대시보드
     return (
       <div className="min-h-screen bg-gray-50 animate-fade-in pb-10">
@@ -854,17 +866,29 @@ export default function App() {
 
           {/* 전체 인증 기록 관리 영역 */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-4 bg-slate-50 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="font-bold text-gray-800">전체 인증 기록 ({submissions.length}건)</h2>
+            <div className="p-4 bg-slate-50 border-b border-gray-100 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+              <h2 className="font-bold text-gray-800 shrink-0">전체 인증 기록 ({filteredAdminSubmissions.length}건)</h2>
+              <div className="relative w-full sm:w-auto">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="이름 또는 셀 이름 검색..."
+                  value={adminSearchQuery}
+                  onChange={(e) => setAdminSearchQuery(e.target.value)}
+                  className="w-full sm:w-64 pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                />
+              </div>
             </div>
             {/* 관리자 이미지 업로드용 숨김 인풋 */}
             <input type="file" ref={adminFileInputRef} onChange={handleAdminPhotoUpload} accept="image/*" className="hidden" />
             
             <div className="divide-y divide-gray-100">
-              {submissions.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">기록이 없습니다.</p>
+              {filteredAdminSubmissions.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">
+                  {adminSearchQuery ? '검색된 기록이 없습니다.' : '기록이 없습니다.'}
+                </p>
               ) : (
-                submissions.slice((adminPage - 1) * 5, adminPage * 5).map((sub) => (
+                filteredAdminSubmissions.slice((adminPage - 1) * 5, adminPage * 5).map((sub) => (
                   <div key={sub.id} className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center hover:bg-gray-50">
                     {editingId === sub.id ? (
                       <div className="w-full bg-blue-50/50 flex flex-col gap-3 p-3 rounded-xl border border-blue-100">
@@ -949,9 +973,9 @@ export default function App() {
             </div>
             
             {/* 전체 인증 기록 페이지네이션 (5개씩) */}
-            {submissions.length > 5 && (
+            {filteredAdminSubmissions.length > 5 && (
               <div className="pb-5 pt-1 border-t border-gray-100">
-                {renderPagination(adminPage, submissions.length, 5, setAdminPage)}
+                {renderPagination(adminPage, filteredAdminSubmissions.length, 5, setAdminPage)}
               </div>
             )}
           </div>
