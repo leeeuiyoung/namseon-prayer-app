@@ -868,14 +868,14 @@ export default function App() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-gray-100 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
               <h2 className="font-bold text-gray-800 shrink-0">전체 인증 기록 ({filteredAdminSubmissions.length}건)</h2>
-              <div className="relative w-full sm:w-auto">
+              <div className="relative w-full sm:w-48">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input 
                   type="text" 
-                  placeholder="이름 또는 셀 이름 검색..."
+                  placeholder="이름 또는 셀 검색..."
                   value={adminSearchQuery}
                   onChange={(e) => setAdminSearchQuery(e.target.value)}
-                  className="w-full sm:w-64 pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                  className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -889,7 +889,7 @@ export default function App() {
                 </p>
               ) : (
                 filteredAdminSubmissions.slice((adminPage - 1) * 5, adminPage * 5).map((sub) => (
-                  <div key={sub.id} className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center hover:bg-gray-50">
+                  <div key={sub.id} className="p-4 flex flex-row gap-3 sm:gap-4 items-center hover:bg-gray-50">
                     {editingId === sub.id ? (
                       <div className="w-full bg-blue-50/50 flex flex-col gap-3 p-3 rounded-xl border border-blue-100">
                         <div className="flex flex-col sm:flex-row gap-4">
@@ -938,31 +938,31 @@ export default function App() {
                     ) : (
                       <>
                         {sub.photoPreview && (
-                          <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 border border-gray-200">
+                          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden shrink-0 border border-gray-200">
                             <img src={sub.photoPreview} alt="인증" className="w-full h-full object-cover" />
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-gray-900">{sub.name} {sub.position}</span>
-                            <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md">{sub.cellName}셀</span>
+                            <span className="font-bold text-gray-900 text-sm sm:text-base truncate">{sub.name} <span className="text-[10px] sm:text-xs text-gray-500 font-normal">{sub.position}</span></span>
+                            <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md whitespace-nowrap">{sub.cellName}셀</span>
                           </div>
-                          <div className="text-sm text-gray-500 mb-1">인증일: {sub.date}</div>
+                          <div className="text-xs sm:text-sm text-gray-500">인증일: {sub.date}</div>
                         </div>
-                        <div className="flex gap-1 shrink-0">
+                        <div className="flex gap-1 sm:gap-2 shrink-0">
                           <button 
                             onClick={() => startEditing(sub)}
-                            className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-1.5 sm:p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             title="기록 수정"
                           >
-                            <Edit2 className="w-5 h-5" />
+                            <Edit2 className="w-4 h-4 sm:w-5 sm:h-5" />
                           </button>
                           <button 
                             onClick={() => handleDeleteClick(sub.id)}
-                            className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-1.5 sm:p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             title="기록 삭제"
                           >
-                            <Trash2 className="w-5 h-5" />
+                            <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                           </button>
                         </div>
                       </>
