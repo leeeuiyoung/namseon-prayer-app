@@ -431,7 +431,7 @@ export default function App() {
     // 횟수 기준 내림차순 정렬
     const sortedLeaderboard = Object.values(counts).sort((a, b) => b.count - a.count);
 
-    // 공동 순위(Dense Rank) 계산: 횟수가 같으면 같은 등수 부여, 다음 등수는 누락 없이 순차적 증가 (예: 1, 1, 1, 2, 3...)
+    // 공동 순위(Dense Rank) 계산
     let currentRank = 1;
     let previousCount = -1;
 
@@ -442,7 +442,7 @@ export default function App() {
         }
         previousCount = person.count;
       }
-      person.rank = currentRank; // 계산된 등수 저장
+      person.rank = currentRank; // 계산된 등수 저장 (더 이상 화면에 직접 표시하지 않음)
     });
 
     return sortedLeaderboard;
@@ -674,6 +674,9 @@ export default function App() {
     const paginatedLeaderboard = leaderboard.slice((leaderboardPage - 1) * 10, leaderboardPage * 10);
     const paginatedRecent = submissions.slice((recentPage - 1) * 4, recentPage * 4);
     
+    // 최고 기록 횟수 찾기 (최다 참여자 노란색 배경 강조용)
+    const maxCount = leaderboard.length > 0 ? leaderboard[0].count : 0;
+    
     // 화면 깜빡임 방지를 위해 항상 4개의 슬롯 유지 (데이터가 부족하면 null 채움)
     const paddedRecent = [...paginatedRecent];
     if (submissions.length > 0) {
@@ -694,23 +697,31 @@ export default function App() {
           {/* 샤이닝 스타 (설정에 따라 표시/숨김 처리) */}
           {showLeaderboard && (
             <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
-              <div className="flex items-center justify-center mb-6">
-                <Trophy className="w-8 h-8 text-yellow-500 mr-2" />
-                <h2 className="text-xl font-extrabold text-gray-800">샤이닝 스타 참여 현황</h2>
+              <div className="flex flex-col items-center justify-center mb-6">
+                <div className="flex items-center">
+                  <Trophy className="w-8 h-8 text-yellow-500 mr-2" />
+                  <h2 className="text-xl font-extrabold text-gray-800">샤이닝 스타 참여 현황</h2>
+                </div>
+                {/* 별빛 이모티콘 안내 문구 추가 */}
+                {maxCount > 0 && (
+                  <div className="mt-3 text-xs font-medium text-gray-600 bg-yellow-50/50 px-3 py-1.5 rounded-full border border-yellow-100 flex items-center shadow-sm">
+                    <span className="text-yellow-500 mr-1.5 text-sm">✨</span> 표시는 <span className="font-bold text-gray-800 ml-1">샤이닝 스타상 후보</span>입니다
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 {leaderboard.length === 0 ? (
                   <p className="text-center text-gray-500 py-4">아직 인증된 내역이 없습니다.</p>
                 ) : (
                   paginatedLeaderboard.map((person) => {
-                    const actualRank = person.rank;
-                    const isTop1 = actualRank === 1; // 공동 1등 확인
+                    const isTop1 = maxCount > 0 && person.count === maxCount; // 최고 횟수 확인 (공동 1위 포함)
                     
                     return (
-                      <div key={person.idKey} className={`flex items-center px-3 py-2 rounded-lg border ${isTop1 ? 'bg-yellow-50 border-yellow-200 shadow-sm' : 'bg-gray-50 border-gray-100'}`}>
-                        <div className={`w-7 h-7 text-sm rounded-full flex items-center justify-center font-bold mr-3 shrink-0 ${actualRank === 1 ? 'bg-yellow-100 text-yellow-600' : actualRank === 2 ? 'bg-gray-200 text-gray-600' : actualRank === 3 ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>{actualRank}</div>
+                      <div key={person.idKey} className={`flex items-center px-4 py-3 rounded-lg border ${isTop1 ? 'bg-yellow-50 border-yellow-300 shadow-sm' : 'bg-gray-50 border-gray-100'}`}>
                         <div className="flex-1">
                           <div className="flex items-center flex-wrap gap-1.5">
+                            {/* 1등일 경우 이름 왼쪽에 별빛 추가 */}
+                            {isTop1 && <span className="text-yellow-500 text-sm" title="샤이닝 스타상 후보">✨</span>}
                             <span className="font-bold text-gray-800 text-base">{person.name}</span>
                             <span className="text-xs text-gray-500">{person.position}</span>
                             <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">{person.cellName}셀</span>
@@ -816,6 +827,9 @@ export default function App() {
       );
     }
 
+    // 최고 기록 횟수 찾기 (동점 1위 배경색 강조용)
+    const maxCount = leaderboard.length > 0 ? leaderboard[0].count : 0;
+
     // 검색어에 따른 결과 필터링
     const filteredAdminSubmissions = submissions.filter(sub => 
       (sub.name && sub.name.includes(adminSearchQuery)) || 
@@ -867,24 +881,33 @@ export default function App() {
 
           {/* 관리자 열람용 랭킹 (추가된 부분) */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-4 bg-slate-50 border-b border-gray-100 flex justify-between items-center">
+            <div className="p-4 bg-slate-50 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-2">
               <h2 className="font-bold text-gray-800 flex items-center"><Trophy className="w-5 h-5 mr-2 text-yellow-500" /> 샤이닝 스타 참여 현황 (관리자 열람용)</h2>
+              {/* 관리자 화면에도 안내 문구 추가 */}
+              {maxCount > 0 && (
+                <div className="text-xs font-medium text-gray-600 bg-white px-2 py-1 rounded-md border border-gray-200">
+                  <span className="text-yellow-500 mr-1">✨</span>샤이닝 스타상 후보
+                </div>
+              )}
             </div>
             <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
               {leaderboard.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">아직 인증된 내역이 없습니다.</p>
               ) : (
                 leaderboard.map((person) => {
-                  const actualRank = person.rank;
-                  const isTop1 = actualRank === 1; // 공동 1등 확인
+                  const isTop1 = maxCount > 0 && person.count === maxCount; // 최고 횟수 확인
                   
                   return (
-                    <div key={person.idKey} className={`p-4 flex items-center justify-between transition-colors ${isTop1 ? 'bg-yellow-50' : 'hover:bg-gray-50'}`}>
+                    <div key={person.idKey} className={`p-4 flex items-center justify-between transition-colors ${isTop1 ? 'bg-yellow-50 border-y border-yellow-200' : 'hover:bg-gray-50'}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 text-sm rounded-full flex items-center justify-center font-bold shrink-0 ${actualRank === 1 ? 'bg-yellow-100 text-yellow-600' : actualRank === 2 ? 'bg-gray-200 text-gray-600' : actualRank === 3 ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>{actualRank}</div>
                         <div>
-                          <div className="font-bold text-gray-900">{person.name} <span className="text-xs text-gray-500 font-normal">{person.position}</span></div>
-                          <div className="text-xs text-blue-600">{person.cellName}셀</div>
+                          <div className="flex items-center gap-1.5">
+                            {/* 1등일 경우 이름 왼쪽에 별빛 추가 */}
+                            {isTop1 && <span className="text-yellow-500 text-sm" title="샤이닝 스타상 후보">✨</span>}
+                            <span className="font-bold text-gray-900">{person.name}</span> 
+                            <span className="text-xs text-gray-500 font-normal">{person.position}</span>
+                          </div>
+                          <div className="text-xs text-blue-600 mt-0.5">{person.cellName}셀</div>
                         </div>
                       </div>
                       <div className="text-right">
