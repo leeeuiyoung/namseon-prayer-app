@@ -708,6 +708,11 @@ export default function App() {
                     <span className="text-yellow-500 mr-1.5 text-sm">✨</span> 표시는 <span className="font-bold text-gray-800 ml-1">샤이닝 스타상 후보</span>입니다
                   </div>
                 )}
+                {/* 추가된 격려 메시지 */}
+                <div className="mt-3 text-center text-[11px] sm:text-xs text-gray-500 leading-relaxed w-full">
+                  <span className="text-blue-600 font-semibold block mb-0.5">인증을 많이 할수록 이벤트 당첨 확률이 높아집니다^^</span>
+                  주님과 영적 추억을 많이 쌓아가는 남선교회 되길 바랍니다!
+                </div>
               </div>
               <div className="space-y-2">
                 {leaderboard.length === 0 ? (
