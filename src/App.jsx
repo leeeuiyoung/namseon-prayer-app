@@ -72,7 +72,7 @@ export default function App() {
   // 사진 크게 보기 상태 (추가됨)
   const [selectedImage, setSelectedImage] = useState(null);
 
-  // 앱 설정 (이달의 기도용사 표시 여부)
+  // 앱 설정 (샤이닝 스타 표시 여부)
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   // 화면이 전환될 때마다 무조건 스크롤을 맨 위로 올려주는 기능 (추가됨)
@@ -219,12 +219,13 @@ export default function App() {
     try {
       const colRef = collection(db, 'prayers');
       
-      // "셀" 글자 중복 방지 처리 (예: "요한셀" 또는 "요한 셀" -> "요한"으로 통일하여 저장)
+      // "셀" 글자 중복 방지 및 이름 앞뒤 공백 제거
       const normalizedCellName = formData.cellName.trim().replace(/\s*셀$/, '').trim();
+      const normalizedName = formData.name.trim();
 
       await addDoc(colRef, {
         cellName: normalizedCellName,
-        name: formData.name,
+        name: normalizedName,
         position: formData.position,
         date: formData.date,
         photoPreview: formData.photoPreview,
@@ -338,12 +339,13 @@ export default function App() {
     setIsLoading(true);
     try {
       const docRef = doc(db, 'prayers', editingId);
-      // 수정 시에도 "셀" 글자 중복 처리 적용
+      // 수정 시에도 "셀" 글자 중복 처리 및 이름 공백 제거 적용
       const normalizedCellName = editFormData.cellName.trim().replace(/\s*셀$/, '').trim();
+      const normalizedName = editFormData.name.trim();
       
       await updateDoc(docRef, {
         cellName: normalizedCellName,
-        name: editFormData.name,
+        name: normalizedName,
         position: editFormData.position,
         date: editFormData.date,
         photoPreview: editFormData.photoPreview, // 교체된 사진 데이터 반영
@@ -359,14 +361,14 @@ export default function App() {
     }
   };
 
-  // 관리자 설정: 기도용사 표시 토글
+  // 관리자 설정: 샤이닝 스타 표시 토글
   const toggleLeaderboard = async () => {
     setIsLoading(true);
     try {
       const newState = !showLeaderboard;
       await setDoc(doc(db, 'settings', 'config'), { showLeaderboard: newState }, { merge: true });
       setShowLeaderboard(newState);
-      setModalMessage(`이달의 기도용사가 화면에 ${newState ? '표시됩니다.' : '숨겨집니다.'}`);
+      setModalMessage(`샤이닝 스타 참여 현황이 화면에 ${newState ? '표시됩니다.' : '숨겨집니다.'}`);
     } catch (error) {
       console.error("설정 변경 에러:", error);
       setModalMessage("설정 변경에 실패했습니다.");
@@ -405,11 +407,20 @@ export default function App() {
   const getLeaderboard = () => {
     const counts = {};
     submissions.forEach(sub => {
-      const key = `${sub.cellName}-${sub.name}-${sub.position}`;
+      // 기존 데이터에 남아있을 수 있는 앞뒤 공백을 강제로 제거하여 동일인물로 묶음
+      const safeCell = (sub.cellName || '').trim();
+      const safeName = (sub.name || '').trim();
+      const safePos = (sub.position || '').trim();
+      
+      const key = `${safeCell}-${safeName}-${safePos}`;
+      
       if (!counts[key]) {
         counts[key] = {
-          cellName: sub.cellName, name: sub.name, position: sub.position,
-          count: 0, lastDate: sub.date
+          cellName: safeCell, 
+          name: safeName, 
+          position: safePos,
+          count: 0, 
+          lastDate: sub.date
         };
       }
       counts[key].count += 1;
@@ -644,6 +655,9 @@ export default function App() {
     const paginatedLeaderboard = leaderboard.slice((leaderboardPage - 1) * 10, leaderboardPage * 10);
     const paginatedRecent = submissions.slice((recentPage - 1) * 4, recentPage * 4);
     
+    // 최고 기록 횟수 찾기 (동점 1위 배경색 강조용)
+    const maxCount = leaderboard.length > 0 ? leaderboard[0].count : 0;
+    
     // 화면 깜빡임 방지를 위해 항상 4개의 슬롯 유지 (데이터가 부족하면 null 채움)
     const paddedRecent = [...paginatedRecent];
     if (submissions.length > 0) {
@@ -661,12 +675,12 @@ export default function App() {
         </div>
 
         <div className="p-5 space-y-6">
-          {/* 이달의 기도 용사 (설정에 따라 표시/숨김 처리) */}
+          {/* 샤이닝 스타 (설정에 따라 표시/숨김 처리) */}
           {showLeaderboard && (
             <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
               <div className="flex items-center justify-center mb-6">
                 <Trophy className="w-8 h-8 text-yellow-500 mr-2" />
-                <h2 className="text-xl font-extrabold text-gray-800">이달의 기도 용사 Top</h2>
+                <h2 className="text-xl font-extrabold text-gray-800">샤이닝 스타 참여 현황</h2>
               </div>
               <div className="space-y-2">
                 {leaderboard.length === 0 ? (
@@ -674,8 +688,10 @@ export default function App() {
                 ) : (
                   paginatedLeaderboard.map((person, idx) => {
                     const actualRank = (leaderboardPage - 1) * 10 + idx + 1;
+                    const isTop1 = maxCount > 0 && person.count === maxCount; // 1등(최고점) 여부 확인
+                    
                     return (
-                      <div key={actualRank} className="flex items-center px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
+                      <div key={actualRank} className={`flex items-center px-3 py-2 rounded-lg border ${isTop1 ? 'bg-yellow-50 border-yellow-200 shadow-sm' : 'bg-gray-50 border-gray-100'}`}>
                         <div className={`w-7 h-7 text-sm rounded-full flex items-center justify-center font-bold mr-3 shrink-0 ${actualRank === 1 ? 'bg-yellow-100 text-yellow-600' : actualRank === 2 ? 'bg-gray-200 text-gray-600' : actualRank === 3 ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>{actualRank}</div>
                         <div className="flex-1">
                           <div className="flex items-center flex-wrap gap-1.5">
@@ -784,6 +800,9 @@ export default function App() {
       );
     }
 
+    // 최고 기록 횟수 찾기 (동점 1위 배경색 강조용)
+    const maxCount = leaderboard.length > 0 ? leaderboard[0].count : 0;
+
     // 검색어에 따른 결과 필터링
     const filteredAdminSubmissions = submissions.filter(sub => 
       (sub.name && sub.name.includes(adminSearchQuery)) || 
@@ -807,7 +826,7 @@ export default function App() {
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
                 <div>
-                  <h3 className="font-bold text-sm text-gray-800">이달의 기도용사 랭킹 공개</h3>
+                  <h3 className="font-bold text-sm text-gray-800">샤이닝 스타 랭킹 공개</h3>
                   <p className="text-xs text-gray-500 mt-0.5">결과보기 화면에 랭킹을 표시합니다.</p>
                 </div>
                 <button 
@@ -836,7 +855,7 @@ export default function App() {
           {/* 관리자 열람용 랭킹 (추가된 부분) */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="font-bold text-gray-800 flex items-center"><Trophy className="w-5 h-5 mr-2 text-yellow-500" /> 기도용사 랭킹 (관리자 열람용)</h2>
+              <h2 className="font-bold text-gray-800 flex items-center"><Trophy className="w-5 h-5 mr-2 text-yellow-500" /> 샤이닝 스타 참여 현황 (관리자 열람용)</h2>
             </div>
             <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
               {leaderboard.length === 0 ? (
@@ -844,8 +863,10 @@ export default function App() {
               ) : (
                 leaderboard.map((person, idx) => {
                   const actualRank = idx + 1;
+                  const isTop1 = maxCount > 0 && person.count === maxCount; // 1등 여부 확인
+                  
                   return (
-                    <div key={actualRank} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                    <div key={actualRank} className={`p-4 flex items-center justify-between transition-colors ${isTop1 ? 'bg-yellow-50' : 'hover:bg-gray-50'}`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 text-sm rounded-full flex items-center justify-center font-bold shrink-0 ${actualRank === 1 ? 'bg-yellow-100 text-yellow-600' : actualRank === 2 ? 'bg-gray-200 text-gray-600' : actualRank === 3 ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>{actualRank}</div>
                         <div>
