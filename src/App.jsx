@@ -416,6 +416,7 @@ export default function App() {
       
       if (!counts[key]) {
         counts[key] = {
+          idKey: key, // 고유 식별자 추가
           cellName: safeCell, 
           name: safeName, 
           position: safePos,
@@ -426,7 +427,25 @@ export default function App() {
       counts[key].count += 1;
       if (new Date(sub.date) > new Date(counts[key].lastDate)) counts[key].lastDate = sub.date;
     });
-    return Object.values(counts).sort((a, b) => b.count - a.count);
+
+    // 횟수 기준 내림차순 정렬
+    const sortedLeaderboard = Object.values(counts).sort((a, b) => b.count - a.count);
+
+    // 공동 순위(Dense Rank) 계산: 횟수가 같으면 같은 등수 부여, 다음 등수는 누락 없이 순차적 증가 (예: 1, 1, 1, 2, 3...)
+    let currentRank = 1;
+    let previousCount = -1;
+
+    sortedLeaderboard.forEach((person, index) => {
+      if (person.count !== previousCount) {
+        if (index !== 0) {
+          currentRank++; // 이전 횟수와 다르면 등수 증가
+        }
+        previousCount = person.count;
+      }
+      person.rank = currentRank; // 계산된 등수 저장
+    });
+
+    return sortedLeaderboard;
   };
 
   const leaderboard = getLeaderboard();
@@ -655,9 +674,6 @@ export default function App() {
     const paginatedLeaderboard = leaderboard.slice((leaderboardPage - 1) * 10, leaderboardPage * 10);
     const paginatedRecent = submissions.slice((recentPage - 1) * 4, recentPage * 4);
     
-    // 최고 기록 횟수 찾기 (동점 1위 배경색 강조용)
-    const maxCount = leaderboard.length > 0 ? leaderboard[0].count : 0;
-    
     // 화면 깜빡임 방지를 위해 항상 4개의 슬롯 유지 (데이터가 부족하면 null 채움)
     const paddedRecent = [...paginatedRecent];
     if (submissions.length > 0) {
@@ -686,12 +702,12 @@ export default function App() {
                 {leaderboard.length === 0 ? (
                   <p className="text-center text-gray-500 py-4">아직 인증된 내역이 없습니다.</p>
                 ) : (
-                  paginatedLeaderboard.map((person, idx) => {
-                    const actualRank = (leaderboardPage - 1) * 10 + idx + 1;
-                    const isTop1 = maxCount > 0 && person.count === maxCount; // 1등(최고점) 여부 확인
+                  paginatedLeaderboard.map((person) => {
+                    const actualRank = person.rank;
+                    const isTop1 = actualRank === 1; // 공동 1등 확인
                     
                     return (
-                      <div key={actualRank} className={`flex items-center px-3 py-2 rounded-lg border ${isTop1 ? 'bg-yellow-50 border-yellow-200 shadow-sm' : 'bg-gray-50 border-gray-100'}`}>
+                      <div key={person.idKey} className={`flex items-center px-3 py-2 rounded-lg border ${isTop1 ? 'bg-yellow-50 border-yellow-200 shadow-sm' : 'bg-gray-50 border-gray-100'}`}>
                         <div className={`w-7 h-7 text-sm rounded-full flex items-center justify-center font-bold mr-3 shrink-0 ${actualRank === 1 ? 'bg-yellow-100 text-yellow-600' : actualRank === 2 ? 'bg-gray-200 text-gray-600' : actualRank === 3 ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>{actualRank}</div>
                         <div className="flex-1">
                           <div className="flex items-center flex-wrap gap-1.5">
@@ -800,9 +816,6 @@ export default function App() {
       );
     }
 
-    // 최고 기록 횟수 찾기 (동점 1위 배경색 강조용)
-    const maxCount = leaderboard.length > 0 ? leaderboard[0].count : 0;
-
     // 검색어에 따른 결과 필터링
     const filteredAdminSubmissions = submissions.filter(sub => 
       (sub.name && sub.name.includes(adminSearchQuery)) || 
@@ -861,12 +874,12 @@ export default function App() {
               {leaderboard.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">아직 인증된 내역이 없습니다.</p>
               ) : (
-                leaderboard.map((person, idx) => {
-                  const actualRank = idx + 1;
-                  const isTop1 = maxCount > 0 && person.count === maxCount; // 1등 여부 확인
+                leaderboard.map((person) => {
+                  const actualRank = person.rank;
+                  const isTop1 = actualRank === 1; // 공동 1등 확인
                   
                   return (
-                    <div key={actualRank} className={`p-4 flex items-center justify-between transition-colors ${isTop1 ? 'bg-yellow-50' : 'hover:bg-gray-50'}`}>
+                    <div key={person.idKey} className={`p-4 flex items-center justify-between transition-colors ${isTop1 ? 'bg-yellow-50' : 'hover:bg-gray-50'}`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 text-sm rounded-full flex items-center justify-center font-bold shrink-0 ${actualRank === 1 ? 'bg-yellow-100 text-yellow-600' : actualRank === 2 ? 'bg-gray-200 text-gray-600' : actualRank === 3 ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>{actualRank}</div>
                         <div>
